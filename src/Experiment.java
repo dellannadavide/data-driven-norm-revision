@@ -1,5 +1,5 @@
 import dnr.DNR;
-import masobjjeval.MASObjectivesEvaluator;
+import masobjeval.MASObjectivesEvaluator;
 import simulation.*;
 
 import java.io.File;
@@ -29,7 +29,7 @@ public class Experiment {
         int dnr_samples = -1;
 
         boolean logTwoLabelConfMatr = true;
-        boolean isNormObj = false;
+        boolean isNormObj = true;
         double  tco2_indiv = 100;
         double  ttt_indiv = 45;
         double t_oa = 1.1;
@@ -43,15 +43,15 @@ public class Experiment {
         boolean independent_set_test = false;
         int trials = 100;
 //        int trials = 1;
-//        String [] rev_types = {"weakening", "strengthening", "alteration"};
-        String [] rev_types = {"alteration"};
+        String [] rev_types = {"weakening", "strengthening", "alteration"};
+//        String [] rev_types = {"alteration"};
 //        int [] nrs_norms = {1, 2};
+        int [] nrs_norms = {1};
 //        int [] nrs_norms = {2};
-        int [] nrs_norms = {2};
         String dnr_metric = "accuracy"; // "mlacc", "accuracy"; //note mlacc works only if nr_norms is 2
-        int nr_repeated_revision = 1; //4
-
+        int nr_repeated_revision = 4; //4
         boolean log_synth = false;
+
         for(int nr_norms: nrs_norms) {
             Random r = new Random();
             String filename = "results_" + nr_norms + "norms_";
@@ -142,9 +142,10 @@ public class Experiment {
                         Configuration c_randomly_picked = null;
                         int k = 0;
                         for (Configuration c : rneval.keySet()) {
-                            LinkedHashMap<String, ArrayList<String>> c_eval = dnr.evalConfiguration(c, labeledTraces, traintestsplit, independent_set_test, independentLabeledTraces, logTwoLabelConfMatr);
-                            if(log_synth)
-                                writeMetricsData(resultsfile, exp_type + ";-;-;" + traintestsplit + ";-;" + rev_type + ";" + trial + ";", c_eval, logTwoLabelConfMatr);
+                            LinkedHashMap<String, ArrayList<String>> c_eval = dnr.evalConfiguration(nr_norms, c, labeledTraces, traintestsplit, independent_set_test, independentLabeledTraces, logTwoLabelConfMatr);
+                            if(log_synth) {
+                                writeMetricsData(resultsfile, "synth" + ";-;-;" + traintestsplit + ";-;" + rev_type + ";" + trial + ";", c_eval, logTwoLabelConfMatr);
+                            }
 
                             if (k == random_pick_id) {
                                 c_randomly_picked = c;
@@ -153,7 +154,7 @@ public class Experiment {
                             }
                             k++;
                         }
-                        LinkedHashMap<String, ArrayList<String>> eval_random = dnr.evalConfigurations(systemConfig, c_randomly_picked, labeledTraces, traintestsplit, independent_set_test, independentLabeledTraces, logTwoLabelConfMatr);
+                        LinkedHashMap<String, ArrayList<String>> eval_random = dnr.evalConfigurations(nr_norms, systemConfig, c_randomly_picked, labeledTraces, traintestsplit, independent_set_test, independentLabeledTraces, logTwoLabelConfMatr);
                         System.out.println("Random selection: " + c_randomly_picked);
                         writeMetricsData(resultsfile, exp_type + ";" + metric + ";0;" + traintestsplit + ";" + independent_set_test + ";" + rev_type + ";" + trial + ";", eval_random, logTwoLabelConfMatr);
 
@@ -164,9 +165,13 @@ public class Experiment {
                         System.out.println("... metric "+metric);
                         Configuration tempSysConfig = systemConfig;
                         for (int i = 0; i < nr_repeated_revision; i++) { //checking also what happens after 4 repeated revisions
+                            if(i>0) {//I synthesise again
+                                rn = dnr.synthesis(rev_type, tempSysConfig, labeledTraces);
+                                rneval = dnr.selection(tempSysConfig, rn, labeledTraces);
+                            }
                             Configuration newConfig = dnr.getBestConfigFromSelStep(rneval);
                             System.out.println("DNR selection: " + newConfig);
-                            LinkedHashMap<String, ArrayList<String>> eval = dnr.evalConfigurations(tempSysConfig, newConfig, labeledTraces, traintestsplit, independent_set_test, independentLabeledTraces, logTwoLabelConfMatr);
+                            LinkedHashMap<String, ArrayList<String>> eval = dnr.evalConfigurations(nr_norms, tempSysConfig, newConfig, labeledTraces, traintestsplit, independent_set_test, independentLabeledTraces, logTwoLabelConfMatr);
                             writeMetricsData(resultsfile, exp_type + ";" + metric + ";" + i + ";" + traintestsplit + ";" + independent_set_test + ";" + rev_type + ";" + trial + ";", eval, logTwoLabelConfMatr);
                             tempSysConfig = newConfig;
                         }
@@ -215,148 +220,6 @@ public class Experiment {
             e.printStackTrace();
         }
     }
-
-
-
-//    static void writeTracesData(HighwaySimulation s, String folder_name, String filename, String param, Collection<String> normsIDS, LinkedHashMap<String, ArrayList<Trace>> triedConfigsLabeledTraces) {
-//        try {
-//            /*create a file for the labeled traces*/
-//            File dataset_traces = new File(folder_name+System.getProperty("file.separator")+filename+".traces.csv");
-//            FileWriter csvWriter = new FileWriter(dataset_traces, false);
-//            String header = "violRate;trucks;veh/s;t_oa;tco2_indiv;ttt_indiv;objEvalType;randomPick;useAllPrevTr;metric;revProtocol;iteration;config;s1;s2;s3;s4;s5;s6;s7;s8;s9;s10;CO2_eval;TravelTime_eval;";
-//            for(String normID: normsIDS)
-//                header=header+normID+";";
-//            header=header+"isOsat";
-//            csvWriter.append(header+"\n");
-//            for (Map.Entry<String, ArrayList<Trace>> config : triedConfigsLabeledTraces.entrySet()) {
-//                String configID = config.getKey();
-//                ArrayList<Trace> configTraces = config.getValue();
-//                for (Trace t : configTraces) {
-//                    csvWriter.append(param+"");
-//
-//                    csvWriter.append(configID+"");
-//                    csvWriter.append(";");
-//                    csvWriter.append(t.stringifyStates());
-//                    csvWriter.append(";");
-//
-//                    csvWriter.append(t.co2_eval+"");
-//                    csvWriter.append(";");
-//                    csvWriter.append(t.traveltime_eval+"");
-//                    csvWriter.append(";");
-//                    for(String norm_eval : t.norms_eval.values()) {
-//                        csvWriter.append(norm_eval+"");
-//                        csvWriter.append(";");
-//                    }
-//                    csvWriter.append(isObjAchieved(s, t)+"");
-//                    csvWriter.append("\n");
-//                }
-//            }
-//            csvWriter.flush();
-//            csvWriter.close();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//    }
-//
-//    static void writeSummaryData(HighwaySimulation s, String folder_name, String filename, String param, LinkedHashMap<String, ArrayList<Trace>> triedConfigsLabeledTraces, double finalSolVal, int revisionsPerformed, LinkedHashMap<String, Boolean> triedConfigsRandomPick) {
-//        /*create another file for the summary only*/
-//        try {
-//
-//            File dataset_summary = new File(folder_name+System.getProperty("file.separator")+filename+".summary.csv");
-//            FileWriter csvWriter = new FileWriter(dataset_summary, false);
-//            String header = "violRate;trucks;veh/s;t_oa;tco2_indiv;ttt_indiv;objEvalType;randomPick;useAllPrevTr;metric;revProtocol;iteration;steps;nrRandomPicks;FinalSolVal;IsOptimal;SequenceOfSol";
-//            csvWriter.append(header+"\n");
-//            csvWriter.append(param+"");
-//
-//            csvWriter.append(revisionsPerformed+"");
-//            csvWriter.append(";");
-//
-//            int nr_random_picks = 0;
-//            for (boolean rp : triedConfigsRandomPick.values())
-//                if(rp) nr_random_picks++;
-//            csvWriter.append(nr_random_picks+"");
-//            csvWriter.append(";");
-//
-//            csvWriter.append(finalSolVal+"");
-//            csvWriter.append(";");
-//            csvWriter.append((finalSolVal>=s.t_oa)+"");
-//            csvWriter.append(";");
-//
-//            int i = 0;
-//            for (Map.Entry<String, ArrayList<Trace>> config : triedConfigsLabeledTraces.entrySet()) {
-//                String configID = config.getKey();
-//                csvWriter.append(configID+"");
-//                if(i<triedConfigsLabeledTraces.size())
-//                    csvWriter.append(";");
-//                i++;
-//            }
-//            csvWriter.flush();
-//            csvWriter.close();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//    }
-//
-//    static void writeConfigData(String folder_name, String filename, String param, Collection<String> normIDS, LinkedHashMap<String, ArrayList<String>> triedConfigsSuggestions, LinkedHashMap<String, ArrayList<Trace>> triedConfigsLabeledTraces, LinkedHashMap<String, ArrayList<Double>> triedConfigsMetricVal, LinkedHashMap<String, ArrayList<Double>> triedConfigsCO2emissions, LinkedHashMap<String, Double> triedConfigsOA, LinkedHashMap<String, Boolean> triedConfigsRandomPick, LinkedHashMap<String, ArrayList<Integer>> triedConfigsConfusionMatrix) {
-//        /*create another file for the config info only*/
-//        try {
-//            File dataset_configinfo = new File(folder_name+System.getProperty("file.separator")+filename+".configInfo.csv");
-//            FileWriter csvWriter = new FileWriter(dataset_configinfo, false);
-//            String header = "violRate;trucks;veh/s;t_oa;tco2_indiv;ttt_indiv;objEvalType;randomPick;useAllPrevTr;metric;revProtocol;iteration;config;configOA;AvgCO2Emission;AvgTravelTime;ExpectedMetricVal;ActualMetricVal;";
-//            for(String normID: normIDS)
-//                header=header+"TP"+"_"+normID+";"+"FP"+"_"+normID+";"+"TN"+"_"+normID+";"+"FN"+"_"+normID+";";
-//            header=header+"suggestions;pickedNextRandomly";
-//            csvWriter.append(header+"\n");
-//            for (Map.Entry<String, ArrayList<Trace>> config : triedConfigsLabeledTraces.entrySet()) {
-//                String configID = config.getKey();
-//
-//                csvWriter.append(param+"");
-//
-//                csvWriter.append(configID+"");
-//                csvWriter.append(";");
-//
-//                csvWriter.append(triedConfigsOA.get(configID)+"");
-//                csvWriter.append(";");
-//
-//                csvWriter.append(triedConfigsCO2emissions.get(configID).stream().mapToDouble(p -> p).average()+"");
-//                csvWriter.append(";");
-//
-//                csvWriter.append(config.getValue().stream().mapToDouble(t -> t.getTraveltime_eval()).average()+"");
-//                csvWriter.append(";");
-//
-//                for(int i=0; i<triedConfigsMetricVal.get(configID).size(); i++) {
-//                    csvWriter.append(triedConfigsMetricVal.get(configID).get(i)+"");
-//                    csvWriter.append(";");
-//                }
-//                /*csvWriter.append(triedConfigsMetricVal.get(configID).get(0)+""); //ExpectedMetricVal
-//                csvWriter.append(";");
-//                csvWriter.append(triedConfigsMetricVal.get(configID).get(1)+""); //ActualMetricVal
-//                csvWriter.append(";");
-//                csvWriter.append(triedConfigsMetricVal.get(configID).get(2)+""); //NNQ
-//                csvWriter.append(";");
-//                csvWriter.append(triedConfigsMetricVal.get(configID).get(3)+""); //MCENinv
-//                csvWriter.append(";");*/
-//
-//                for(int v : triedConfigsConfusionMatrix.get(configID)) {
-//                    csvWriter.append(v+";");
-//                }
-//
-//                for (String sugg : triedConfigsSuggestions.get(configID)) {
-//                    csvWriter.append(sugg+""); //suggestion fir the ith norm
-//                    csvWriter.append(";");
-//                }
-//
-//                csvWriter.append(triedConfigsRandomPick.get(configID)+""); //if the next was at the end picked randomly
-//                csvWriter.append(";");
-//
-//                csvWriter.append("\n");
-//            }
-//            csvWriter.flush();
-//            csvWriter.close();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//    }
 
     static void writeMetricsData(File resultsfile, String param, LinkedHashMap<String, ArrayList<String>> logMetr, boolean logTwoLabelConfMatr) {
         /**

@@ -77,14 +77,14 @@ public class Trace implements Cloneable {
 
     
     public void addNormEval(String norm_id, boolean isviol) {
-    	this.norms_eval.put(norm_id, isviol?"viol":"ob");
+    	this.norms_eval.put(norm_id, isviol?Constants.VIOLATED:Constants.OBEYED);
     }
     public void addNormEval(String norm_id, String isviol) {
     	this.norms_eval.put(norm_id, isviol);
     }
 
     public boolean normObeyed(String norm_id) {
-    	return this.norms_eval.get(norm_id).equals("ob");
+    	return this.norms_eval.get(norm_id).equals(Constants.OBEYED);
     }
     
     public int getLength() {

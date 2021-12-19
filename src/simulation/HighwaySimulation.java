@@ -115,7 +115,7 @@ public class HighwaySimulation {
 				/*initialize the agent and add it to the simulation*/
 				String id = "veh-"+nextVehicleIndex;
 				v.id = id;
-				String type = r.nextDouble()>trucks?"car":"truck";
+				String type = r.nextDouble()>trucks?Constants.CAR:Constants.TRUCK;
 				v.type = type;
 				conn.do_job_set(Vehicle.add(id, v.type, "r1", (int)conn.do_job_get(Simulation.getCurrentTime()), 0, 9, (byte) -2));
 				v.defaultMaxSpeed = (double)conn.do_job_get(Vehicle.getMaxSpeed(id));
@@ -202,7 +202,7 @@ public class HighwaySimulation {
 			try {
 				String lane = (String)conn.do_job_get(Vehicle.getLaneID(id));
 				String edge = (String)conn.do_job_get(Lane.getEdgeID(lane));
-				if(edge.contains("km")) {
+				if(edge.contains(Constants.KM)) {
 					int edgeIndex = getEdgeIndex(edge);
 					double speed = (double)conn.do_job_get(Vehicle.getSpeed(id));
 					double lead_dist = ((SumoLeader)conn.do_job_get(Vehicle.getLeader(id, 300.0))).dist;
@@ -240,6 +240,6 @@ public class HighwaySimulation {
 	}
 
 	int getEdgeIndex( String edge ) {
-		return Integer.parseInt(edge.replace("km",""));
+		return Integer.parseInt(edge.replace(Constants.KM,""));
 	}
 }

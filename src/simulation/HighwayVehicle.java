@@ -48,39 +48,43 @@ public class HighwayVehicle {
 				else { //the agents wants to obey the norm
 					String lane = (String)conn.do_job_get(Vehicle.getLaneID(id));
 					String edge = (String)conn.do_job_get(Lane.getEdgeID(lane));
-					if(edge.contains("km")) {
-						int kmIndex = Integer.parseInt(edge.replace("km",""));
+					if(edge.contains(Constants.KM)) {
+						int kmIndex = Integer.parseInt(edge.replace(Constants.KM,""));
 						int condpos = -1;
 						int deadpos = -1;
 						
 						if(n_map.getValue() instanceof MaxSpeedNorm) {
 							//if before condition or after deadline, or the norm doesn't applie to the agent type: keep the default max speed
-							condpos = Integer.parseInt(((SimpleDNFNorm)n_map.getValue()).getSimpleCondition().getLiterals().get(MaxSpeedNorm.COND_POS).replace("km", ""));
-							deadpos = Integer.parseInt(((SimpleDNFNorm)n_map.getValue()).getSimpleDeadline().getLiterals().get(MaxSpeedNorm.DEAD_POS).replace("km", ""));
+							condpos = ((MaxSpeedNorm) n_map.getValue()).getDetachmentPosition(this.type);
+							deadpos = ((MaxSpeedNorm) n_map.getValue()).getDeadlinePosition(this.type);
+//							condpos = Integer.parseInt(((DNFNorm)n_map.getValue()).getSimpleCondition().getLiterals().get(MaxSpeedNorm.COND_POS).replace("km", ""));
+//							deadpos = Integer.parseInt(((DNFNorm)n_map.getValue()).getSimpleDeadline().getLiterals().get(MaxSpeedNorm.DEAD_POS).replace("km", ""));
 							
 							
 							//NOTE!!!! the -1 for the condition. I am implementating an agent that sets its maximum speed starting from 1 km BEFORE the norm is detached.
 							//this is a sort of lookahead, and helps achieving the correct number of violations
 							//it avoids situations where the agent sets the speed when it is then too late to avoid to violate the norm
-							if(kmIndex<condpos-1 || kmIndex>=deadpos || !n_map.getValue().appliesToType(type)) { 
+							if(kmIndex<condpos-1 || kmIndex>=deadpos || !n_map.getValue().appliesToType(this.type)) {
 								conn.do_job_set(Vehicle.setMaxSpeed(id, defaultMaxSpeed));
 							}
 							else {//if norm applies AND DETACHED
 								//double speed = (double)conn.do_job_get(Vehicle.getSpeed(id));
 								//conn.do_job_set(Vehicle.setMaxSpeed(id, Math.min(defaultMaxSpeed, ((simulation.MaxSpeedNorm)n_map.getValue()).getSpeed())));
-								conn.do_job_set(Vehicle.setMaxSpeed(id, Math.min(defaultMaxSpeed, ((MaxSpeedNorm)n_map.getValue()).getSpeed())));
+								conn.do_job_set(Vehicle.setMaxSpeed(id, Math.min(defaultMaxSpeed, ((MaxSpeedNorm)n_map.getValue()).getSpeed(this.type))));
 							}
 								
 						}
 						else if(n_map.getValue() instanceof MinDistNorm) {
-							condpos = Integer.parseInt(((SimpleDNFNorm)n_map.getValue()).getSimpleCondition().getLiterals().get(MinDistNorm.COND_POS).replace("km", ""));
-							deadpos = Integer.parseInt(((SimpleDNFNorm)n_map.getValue()).getSimpleDeadline().getLiterals().get(MinDistNorm.DEAD_POS).replace("km", ""));
+							condpos = ((MinDistNorm) n_map.getValue()).getDetachmentPosition(this.type);
+							deadpos = ((MinDistNorm) n_map.getValue()).getDeadlinePosition(this.type);
+//							condpos = Integer.parseInt((n_map.getValue()).getSimpleCondition().getLiterals().get(MinDistNorm.COND_POS).replace("km", ""));
+//							deadpos = Integer.parseInt((n_map.getValue()).getSimpleDeadline().getLiterals().get(MinDistNorm.DEAD_POS).replace("km", ""));
 							
 							if(kmIndex<condpos-1 || kmIndex>=deadpos || !n_map.getValue().appliesToType(type)) {
 								conn.do_job_set(Vehicle.setMinGap(id, defaultMinDist));
 							}
 							else
-								conn.do_job_set(Vehicle.setMinGap(id, Math.max(defaultMinDist, ((MinDistNorm)n_map.getValue()).getDist())));
+								conn.do_job_set(Vehicle.setMinGap(id, Math.max(defaultMinDist, ((MinDistNorm)n_map.getValue()).getDist(this.type))));
 						}
 					}
 				}

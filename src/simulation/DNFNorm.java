@@ -14,29 +14,33 @@ public abstract class DNFNorm {
 
 	protected Random r;
 	String id;
-	List<Disjunct> cond;
-	List<Disjunct> proh;
-	List<Disjunct> dead;
+	List<Conjunction> cond;
+	List<Conjunction> proh;
+	List<Conjunction> dead;
 
 
-    public DNFNorm(String id, Random r) {
+
+
+	public DNFNorm(String id, Random r) {
 		this.id = id;
 		this.r = r;
+
     }
 
-    public DNFNorm(String id, List<Disjunct> cond, List<Disjunct> proh, List<Disjunct> dead) {
+    public DNFNorm(String id, List<Conjunction> cond, List<Conjunction> proh, List<Conjunction> dead, Random r) {
 		this.id = id;
     	this.cond = cond;
 		this.proh = proh;
 		this.dead = dead;
-		consistencyCheck();
+		this.r = r;
+//		consistencyCheck();
     }
        
     public String getID() {
     	return this.id;
     }
     
-    protected abstract void consistencyCheck();
+//    protected abstract void consistencyCheck();
     
     public boolean isEmpty() {
     	return cond==null || proh==null || dead==null;
@@ -48,20 +52,26 @@ public abstract class DNFNorm {
      * @return
      */
     public int isViol(Trace trace) {
+//		System.out.println("-----------------Testing if norm "+this+" is violated by "+trace);
+		if(isDisabled())
+			return -1;
 		boolean detached = false;
 		for(int i=0;i<trace.getLength();i++) {
 			State state = trace.getStates().get(i);
-			if(isSat("cond", state)) {
+			if(isSat(Constants.CONDITION, state)) {
 				detached = true;
 			}
 			if(detached) {
-				boolean isSatDead = isSat("dead", state);
-				if(isSat("proh", state) && !isSatDead)
+				boolean isSatDead = isSat(Constants.DEADLINE, state);
+				if(isSat(Constants.PROHIBITION, state) && !isSatDead) {
+//					System.out.println("norm violated in state " + state+" --------------------------");
 					return i; //System.out.println("norm violated in state "+state);
+				}
 				if(isSatDead)
 					detached = false; //System.out.println("deadline reached in state "+state);
 			}
 		}
+//		System.out.println("the norm is not violated --------------------------");
 		return -1;
 	}
     
@@ -79,10 +89,10 @@ public abstract class DNFNorm {
     	boolean detached = false;
     	for(int i=0;i<trace.getLength();i++) {
 			State state = trace.getStates().get(i);
-			if(isSat("cond", state))
+			if(isSat(Constants.CONDITION, state))
 				detached = true;
 			
-			if(isSat("dead", state))
+			if(isSat(Constants.DEADLINE, state))
 				detached = false;
     	}
     	return detached;
@@ -114,14 +124,14 @@ public abstract class DNFNorm {
     	boolean detached = false;
     	for(int i=0;i<trace.getLength();i++) {
     		State state = trace.getStates().get(i);
-    		if(isSat("cond", state)) {
+    		if(isSat(Constants.CONDITION, state)) {
 				detached = true;
 				temp_detachment_states.add(state);
     		}
     		
     		if(detached) {
-    			boolean isSatDead = isSat("dead", state);
-				if(isSat("proh", state) && !isSatDead) {
+    			boolean isSatDead = isSat(Constants.DEADLINE, state);
+				if(isSat(Constants.PROHIBITION, state) && !isSatDead) {
 					detachment_states.addAll(temp_detachment_states);
 					temp_detachment_states = new HashSet<>();
 					detached = false;
@@ -151,11 +161,11 @@ public abstract class DNFNorm {
     	boolean detached = false;
     	for(int i=0;i<trace.getLength();i++) {
     		State state = trace.getStates().get(i);
-    		if(isSat("cond", state))
+    		if(isSat(Constants.CONDITION, state))
 				detached = true;
     		if(detached) {
-				boolean isSatDead = isSat("dead", state);
-				if(isSat("proh", state) && !isSatDead) { //here it's violated
+				boolean isSatDead = isSat(Constants.DEADLINE, state);
+				if(isSat(Constants.PROHIBITION, state) && !isSatDead) { //here it's violated
 					violating_states.add(state);
 				}
     			if(isSatDead)
@@ -186,16 +196,16 @@ public abstract class DNFNorm {
         for(int i=0;i<trace.getLength();i++) {
             State state = trace.getStates().get(i);
             if(!detached)
-                if(isSat("cond", state)) {
+                if(isSat(Constants.CONDITION, state)) {
                     detached = true;
                     det_pos = i;
                 }
 
             if(detached) {
-                boolean isSatDead = isSat("dead", state);
+                boolean isSatDead = isSat(Constants.DEADLINE, state);
                 if(i>det_pos) {
 					betcondproh_states_temp.add(state); //I add it, if the state also sat the deadline it will be removed later
-                    if(isSat("proh", state) && !isSatDead) { //here it's violated
+                    if(isSat(Constants.PROHIBITION, state) && !isSatDead) { //here it's violated
                         //add everything found so far
 						betcondproh_states.addAll(betcondproh_states_temp);
 						betcondproh_states_temp = new HashSet<>();
@@ -228,11 +238,11 @@ public abstract class DNFNorm {
     	boolean detached = false;
 		for(int i=0;i<trace.getLength();i++) {
 			State state = trace.getStates().get(i);
-			if(isSat("cond", state)) {
+			if(isSat(Constants.CONDITION, state)) {
 				detached = true;
 			}
 			if(detached) {
-				if(isSat("dead", state)) {//here I found the deadline, i store what found so far
+				if(isSat(Constants.DEADLINE, state)) {//here I found the deadline, i store what found so far
 					betconddead_states.addAll(betconddead_states_temp);
 					detached = false; //and reinit the detached
 					betconddead_states_temp = new HashSet<>();
@@ -258,7 +268,7 @@ public abstract class DNFNorm {
 		if(isViol(trace)==-1){
 			for(int i=0;i<trace.getLength();i++) {
 				State state = trace.getStates().get(i);
-				if(isSat("proh", state)) //here it's violated (notice that here I accept also the deadline state
+				if(isSat(Constants.PROHIBITION, state)) //here it's violated (notice that here I accept also the deadline state
 					ops_states.add(state);
 			}
 		}
@@ -283,11 +293,11 @@ public abstract class DNFNorm {
     	boolean detached = false;
 		for(int i=0;i<trace.getLength();i++) {
 			State state = trace.getStates().get(i);
-			if(isSat("cond", state)) {
+			if(isSat(Constants.CONDITION, state)) {
 				detached = true;
 			}
 			if(detached) {
-				if(isSat("dead", state)) {
+				if(isSat(Constants.DEADLINE, state)) {
 					dead_states.add(state);
 					detached = false;
 				}
@@ -301,9 +311,9 @@ public abstract class DNFNorm {
      * To retrieve the sets of propositions in the components of the norm
      * @return
      */
-    public abstract Set getConditionProp();
-    public abstract Set getProhibitionProp();
-    public abstract Set getDeadlineProp();
+//    public abstract Set getConditionProp();
+//    public abstract Set getProhibitionProp();
+//    public abstract Set getDeadlineProp();
     
     
     
@@ -311,42 +321,41 @@ public abstract class DNFNorm {
      * Generic update, updates with a new list of disjuncts 
      * @param cond
      */
-    public void updateCondition(List<Disjunct> cond) {
+    public void updateCondition(List<Conjunction> cond) {
     	this.cond = cond;
     }
-    public void updateProhibition(List<Disjunct> proh) {
+    public void updateProhibition(List<Conjunction> proh) {
     	this.proh = proh;
     }
-    public void updateDeadline(List<Disjunct> dead) {
+    public void updateDeadline(List<Conjunction> dead) {
     	this.dead = dead;
     }
     
     
-    public List<Disjunct> getCondition() {
+    public List<Conjunction> getCondition() {
     	return this.cond;
     }
-    public List<Disjunct> getProhibition() {
+    public List<Conjunction> getProhibition() {
     	return this.proh;
     }
-    public List<Disjunct> getDeadline() {
+    public List<Conjunction> getDeadline() {
     	return this.dead;
     }
 
-	public Set<List<Disjunct>> getMoreSpecificFormulas(List<Disjunct> dnf_formula, Set<State> set_states, String component) {
+	public Set<List<Conjunction>> getMoreSpecificFormulas(List<Conjunction> dnf_formula, Set<State> set_states, String component) {
 		/**
 		 * Function to synthesise a number of formulas more specific than dnf_formula
-		 * todo: to check if we can generalize a little bit more
 		 */
-		Set<List<Disjunct>> msfs = new HashSet<>();
+		Set<List<Conjunction>> msfs = new HashSet<>();
 		Set<String> rel_prop = getRelProp(set_states, component);
-		Set<LinkedHashMap<String, String>> C = buildConj(rel_prop, component, "more_spec");
+		Set<Conjunction> C = buildConj(rel_prop, component, Constants.MORE_SPEC);
 		msfs.add(dnf_formula);
-		for (LinkedHashMap<String, String> c: C) {
-			List<Disjunct> msf = new ArrayList<>();
-			for(Disjunct d:dnf_formula) {
-				Disjunct d1 = new Disjunct();
-				d1.addLiterals(d.literals);
-				d1.addLiterals(c);
+		for (Conjunction c: C) {
+			List<Conjunction> msf = new ArrayList<>();
+			for(Conjunction d:dnf_formula) {
+				Conjunction d1 = (Conjunction) d.clone();//new Conjunction();
+//				d1.addLiterals(d.literals);
+				d1.addLiterals(c.getLiteralsMap());
 				msf.add(d1);
 			}
 			msfs.add(msf);
@@ -354,19 +363,18 @@ public abstract class DNFNorm {
 		return  msfs;
 	}
 
-	public Set<List<Disjunct>> getLessSpecificFormulas(List<Disjunct> dnf_formula, Set<State> set_states, String component) {
+	public Set<List<Conjunction>> getLessSpecificFormulas(List<Conjunction> dnf_formula, Set<State> set_states, String component) {
 		/**
 		 * Function to synthesise a number of formulas less specific than dnf_formula
-		 * todo: to check if we can generalize a little bit more
 		 */
-		Set<List<Disjunct>> lsfs = new HashSet<>();
+		Set<List<Conjunction>> lsfs = new HashSet<>();
 		Set<String> rel_prop = getRelProp(set_states, component);
-		Set<LinkedHashMap<String, String>> C = buildConj(rel_prop, component, "less_spec");
+		Set<Conjunction> C = buildConj(rel_prop, component, Constants.LESS_SPEC);
 		lsfs.add(dnf_formula);
-		for (LinkedHashMap<String, String> c: C) {
-			List<Disjunct> lsf = new ArrayList<>();
-			Disjunct d1 = new Disjunct();
-			d1.addLiterals(c);
+		for (Conjunction c: C) {
+			List<Conjunction> lsf = new ArrayList<>();
+			Conjunction d1 = new Conjunction();
+			d1.addLiterals(c.getLiteralsMap());
 			lsf.add(d1);
 			lsfs.add(lsf);
 		}
@@ -379,7 +387,27 @@ public abstract class DNFNorm {
 	 * @param component
 	 * @return
 	 */
-	public abstract Set<String> getRelProp(Set<State> set_states, String component);
+	public Set<String> getRelProp(Set<State> set_states, String component) {
+		Set<String> prop = new HashSet<String>();
+		switch (component) {
+			case Constants.CONDITION:
+				for(State s: set_states) {
+					prop.addAll(this.getConditionRelatedProp(s)); //note that for example in a state with km_2 there is no explicit "km_1" prop
+				}
+				break;
+			case Constants.PROHIBITION:
+				for(State s: set_states) {
+					prop.addAll(this.getProhibitionRelatedProp(s)); //I get both type and speed. //note that for example in a state with sp_10 there is no explicit "sp_9", sp_8, 7, etc prop, but as for the km they are implicit
+				}
+				break;
+			case Constants.DEADLINE:
+				for(State s: set_states) {
+					prop.addAll(this.getDeadlineRelatedProp(s));
+				}
+				break;
+		}
+		return  prop;
+	}
 
 	public abstract List getConditionRelatedProp(State s);
 	public abstract List getProhibitionRelatedProp(State s);
@@ -393,16 +421,43 @@ public abstract class DNFNorm {
 	 * @param formula_type
 	 * @return
 	 */
-	public abstract Set<LinkedHashMap<String, String>> buildConj(Set<String> prop, String component, String formula_type);
+	public Set<Conjunction> buildConj(Set<String> prop, String component, String formula_type) {
+		Set<Conjunction> conj = null;
+		switch (component) {
+			case Constants.CONDITION:
+				switch (formula_type) {
+					case Constants.MORE_SPEC:
+						return buildConjMoreSpecCond(prop);
+					case Constants.LESS_SPEC:
+						return buildConjLessSpecCond(prop);
+				}
+				break;
+			case Constants.PROHIBITION:
+				switch (formula_type) {
+					case Constants.MORE_SPEC:
+						return buildConjMoreSpecProh(prop);
+					case Constants.LESS_SPEC:
+						return buildConjLessSpecProh(prop);
+				}
+				break;
+			case Constants.DEADLINE:
+				switch (formula_type) {
+					case Constants.MORE_SPEC:
+						return buildConjMoreSpecDead(prop);
+					case Constants.LESS_SPEC:
+						return buildConjLessSpecDead(prop);
+				}
+				break;
+		}
+		return conj;
+	}
 
-//	/*for weakening the norm - these are norm-specific*/
-//    public abstract Set<Disjunct> getMoreSpecificConditions(List<Trace> traces);
-//    public abstract Set<Disjunct> getMoreSpecificProhibitions(List<Trace> traces);
-//    public abstract Set<Disjunct> getLessSpecificDeadlines(List<Trace> traces);
-//    /*for strengthening the norm - these are norm-specific*/
-//    public abstract Set<Disjunct> getLessSpecificConditions(List<Trace> traces);
-//    public abstract Set<Disjunct> getLessSpecificProhibitions(List<Trace> traces);
-//    public abstract Set<Disjunct> getMoreSpecificDeadlines(List<Trace> traces);
+	protected abstract Set<Conjunction> buildConjMoreSpecCond(Set<String> prop);
+	protected abstract Set<Conjunction> buildConjLessSpecCond(Set<String> prop);
+	protected abstract Set<Conjunction> buildConjMoreSpecProh(Set<String> prop);
+	protected abstract Set<Conjunction> buildConjLessSpecProh(Set<String> prop);
+	protected abstract Set<Conjunction> buildConjMoreSpecDead(Set<String> prop);
+	protected abstract Set<Conjunction> buildConjLessSpecDead(Set<String> prop);
 
 
 	/**
@@ -416,8 +471,13 @@ public abstract class DNFNorm {
 			return "(,,)";
 		}
 		
-		if(isDisabled())
+		if(isDisabled()) {
+//			System.out.println("The norm is disabled----");
 			return "_|_ (disabled norm)";
+		}
+//		else {
+//			System.out.println("The norm is not disabled----");
+//		}
 		
 		String cond_str = "";
 		for(int i=0;i<cond.size();i++) {

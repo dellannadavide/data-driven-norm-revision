@@ -2,7 +2,6 @@ package dnr;
 
 import simulation.*;
 
-import java.io.ObjectInputFilter;
 import java.lang.reflect.Constructor;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -13,7 +12,7 @@ public class DNR {
      * in order to improve its alignment with the MAS objectives w.r.t. a dataset of traces labeled as positive or
      * negative w.r.t. the MAS objectives
      */
-    private Random r;
+    private final Random r;
     String  metric;
     int samples;
     String idMaxSpeedNorm;
@@ -52,10 +51,12 @@ public class DNR {
          * The synthesis step of DNR
          */
         LinkedHashMap<String, ArrayList<DNFNorm>> new_possible_norms = new LinkedHashMap<>();
-        Iterator<Map.Entry<String, DNFNorm>> iter = config.getMap().entrySet().iterator();
-        while (iter.hasNext()) {
-            Map.Entry<String, DNFNorm> n_conf = iter.next();
-            new_possible_norms.put(n_conf.getKey(), new ArrayList<>(reviseNorm(n_conf.getValue(), n_conf.getKey(), config.getNormsTypes(), revision_strategy, traces)));
+        if(config!=null) {
+            Iterator<Map.Entry<String, DNFNorm>> iter = config.getMap().entrySet().iterator();
+            while (iter.hasNext()) {
+                Map.Entry<String, DNFNorm> n_conf = iter.next();
+                new_possible_norms.put(n_conf.getKey(), new ArrayList<>(reviseNorm(n_conf.getValue(), n_conf.getKey(), config.getNormsTypes(), revision_strategy, traces)));
+            }
         }
         return new_possible_norms;
     }
@@ -65,37 +66,37 @@ public class DNR {
          * The selection step of DNR
          */
         LinkedHashMap<Configuration, Double> new_configs_with_quality = new LinkedHashMap<>();
-
-        if(this.samples==-1) {
-            /*
-              Case where we do not want to adopt a Monte Carlo approach but we want to consider all possible cominations of configurations
-             */
-            ArrayList<Configuration> new_possible_configurations = new ArrayList<>();
-            generateCombinations(candidateNorms, new ArrayList<>(candidateNorms.keySet()), new_possible_configurations, 0, currConfig);
-            for(Configuration possible_conf : new_possible_configurations) {
-                if(!possible_conf.isEmpty())
-                    new_configs_with_quality.put(possible_conf, getConfigQuality(possible_conf, traces));
-            }
-        }
-        else {
-            /**here the case of Monte Carlo
-             * Note: instead of keeping just the best I store all of them in new_configs_with_quality, and then sort them later*/
-            for (int k = 0; k < samples; k++) {
-                //sample each possible norm
-                LinkedHashMap<String, DNFNorm> map = new LinkedHashMap<>();
-                for(String normid: candidateNorms.keySet()) {
-                    ArrayList<DNFNorm> norm_candidate_list = candidateNorms.get(normid);
-                    DNFNorm sampled_norm = norm_candidate_list.get(r.nextInt(norm_candidate_list.size()));
-                    map.put(normid, sampled_norm);
+        if(currConfig!=null && !candidateNorms.isEmpty()) {
+            if (this.samples == -1) {
+                /*
+                  Case where we do not want to adopt a Monte Carlo approach but we want to consider all possible cominations of configurations
+                 */
+                ArrayList<Configuration> new_possible_configurations = new ArrayList<>();
+                generateCombinations(candidateNorms, new ArrayList<>(candidateNorms.keySet()), new_possible_configurations, 0, currConfig);
+                for (Configuration possible_conf : new_possible_configurations) {
+                    if (!possible_conf.isEmpty())
+                        new_configs_with_quality.put(possible_conf, getConfigQuality(possible_conf, traces));
                 }
-                //create a configuration
-                Configuration k_conf = new Configuration(map, currConfig.getNormsTypes());
-                //compute accuracy of configuration
-                if(!k_conf.isEmpty())
-                    new_configs_with_quality.put(k_conf, getConfigQuality(k_conf, traces));
-                //if new accuracy is better than best_conf_accuracy update the bests
-                // note I don't do the above comment here, and I sort them later (this way I can keep track of all the
-                //sampled configurations
+            } else {
+                /**here the case of Monte Carlo
+                 * Note: instead of keeping just the best I store all of them in new_configs_with_quality, and then sort them later*/
+                for (int k = 0; k < samples; k++) {
+                    //sample each possible norm
+                    LinkedHashMap<String, DNFNorm> map = new LinkedHashMap<>();
+                    for (String normid : candidateNorms.keySet()) {
+                        ArrayList<DNFNorm> norm_candidate_list = candidateNorms.get(normid);
+                        DNFNorm sampled_norm = norm_candidate_list.get(r.nextInt(norm_candidate_list.size()));
+                        map.put(normid, sampled_norm);
+                    }
+                    //create a configuration
+                    Configuration k_conf = new Configuration(map, currConfig.getNormsTypes());
+                    //compute accuracy of configuration
+                    if (!k_conf.isEmpty())
+                        new_configs_with_quality.put(k_conf, getConfigQuality(k_conf, traces));
+                    //if new accuracy is better than best_conf_accuracy update the bests
+                    // note I don't do the above comment here, and I sort them later (this way I can keep track of all the
+                    //sampled configurations
+                }
             }
         }
         //here I have now all config with their quality, I sort them
@@ -137,23 +138,6 @@ public class DNR {
         }
     }
 
-//
-//    ArrayList<Trace> getViolatingBadTraces(ArrayList<Trace> traces, DNFNorm n ) {
-//        return new ArrayList<>(
-//                traces.stream()
-//                        .filter(t -> ((n.isViol(t) > -1) && (!t.getObjEval())))
-//                        .collect(Collectors.toCollection(ArrayList::new)));
-//    }
-//    ArrayList<Trace> getObeyingGoodTraces( ArrayList<Trace> traces, DNFNorm n ) {
-//        return traces.stream()
-//                .filter(t -> (n.isViol(t)==-1 && t.getObjEval()))
-//                .collect(Collectors.toCollection(ArrayList::new));
-//    }
-//    ArrayList<Trace> getViolatingGoodTraces( ArrayList<Trace> traces, DNFNorm n ) {
-//        return traces.stream()
-//                .filter(t -> ((n.isViol(t)>-1) && t.getObjEval()))
-//                .collect(Collectors.toCollection(ArrayList::new));
-//    }
     ArrayList<Trace> getViolatingTraces( ArrayList<Trace> traces, DNFNorm n ) {
         return traces.stream()
                 .filter(t -> (n.isViol(t)>-1))
@@ -165,13 +149,6 @@ public class DNR {
                 .filter(t -> (n.isViol(t)==-1))
                 .collect(Collectors.toCollection(ArrayList::new));
     }
-
-//
-//    ArrayList<Trace> getObeyingBadTraces( ArrayList<Trace> traces, DNFNorm n ) {
-//        return traces.stream()
-//                .filter(t -> (n.isViol(t)==-1 && !t.getObjEval()))
-//                .collect(Collectors.toCollection(ArrayList::new));
-//    }
 
     LinkedHashMap<String, Set<State>> getStates(ArrayList<Trace> traces, DNFNorm norm) {
         /**
@@ -212,15 +189,7 @@ public class DNR {
          * Function that invokes the correct revisionOperations based on the revision_type
          */
         try {
-//            Constructor<DNFNorm> cons = normsTypes.get(normID).getConstructor(String.class, Disjunct.class, Disjunct.class, Disjunct.class, Random.class);
             Constructor<DNFNorm> cons = normsTypes.get(normID).getConstructor(String.class, List.class, List.class, List.class, Random.class);
-
-//            ArrayList<Trace> TN = getViolatingBadTraces(traces, norm);
-//            ArrayList<Trace> FN = getViolatingGoodTraces(traces, norm);
-//            ArrayList<Trace> N = getViolatingTraces(traces, norm);
-//            ArrayList<Trace> TP = getObeyingGoodTraces(traces, norm);
-//            ArrayList<Trace> FP = getObeyingBadTraces(traces, norm);
-//            ArrayList<Trace> P = getObeyingTraces(traces, norm);
 
             LinkedHashMap<String, Set<State>> states = getStates(traces, norm);
 
@@ -240,7 +209,7 @@ public class DNR {
                 case "-":
                     /*Leave the norm as it is */
                     System.out.println("Leaving "+norm+" as it is.");
-                    return new HashSet<>(Arrays.asList(norm));
+                    return new HashSet<>(List.of(norm));
             }
         } catch (NoSuchMethodException e) {
             e.printStackTrace();
@@ -255,18 +224,18 @@ public class DNR {
          */
         try {
             Set<DNFNorm> possibleAlterations = new HashSet<>();
-            Set<List<Disjunct>> new_possible_cond = norm.getMoreSpecificFormulas(norm.getCondition(), states.get("CS"), "cond");
+            Set<List<Conjunction>> new_possible_cond = norm.getMoreSpecificFormulas(norm.getCondition(), states.get("CS"), "cond");
             new_possible_cond.addAll(norm.getLessSpecificFormulas(norm.getCondition(), states.get("OPS"), "cond"));
 
-            Set<List<Disjunct>> new_possible_proh = norm.getMoreSpecificFormulas(norm.getProhibition(), states.get("PS"), "proh");
+            Set<List<Conjunction>> new_possible_proh = norm.getMoreSpecificFormulas(norm.getProhibition(), states.get("PS"), "proh");
             new_possible_proh.addAll(norm.getLessSpecificFormulas(norm.getProhibition(), states.get("IPS"), "proh"));
 
-            Set<List<Disjunct>> new_possible_dead = norm.getMoreSpecificFormulas(norm.getDeadline(), states.get("DS"), "dead");
+            Set<List<Conjunction>> new_possible_dead = norm.getMoreSpecificFormulas(norm.getDeadline(), states.get("DS"), "dead");
             new_possible_dead.addAll(norm.getLessSpecificFormulas(norm.getDeadline(), states.get("CPS"), "dead"));
 
-            for(List<Disjunct> phi_c_1 : new_possible_cond) {
-                for(List<Disjunct> phi_p_1 : new_possible_proh) {
-                    for(List<Disjunct> phi_d_1 : new_possible_dead) {
+            for(List<Conjunction> phi_c_1 : new_possible_cond) {
+                for(List<Conjunction> phi_p_1 : new_possible_proh) {
+                    for(List<Conjunction> phi_d_1 : new_possible_dead) {
                         DNFNorm n1 = cons.newInstance(normID, phi_c_1, phi_p_1, phi_d_1, r);
                         if(!n1.isEmpty()) {
                             possibleAlterations.add(n1);
@@ -282,34 +251,6 @@ public class DNR {
         return null;
 
     }
-//
-//    Set<DNFNorm> alterNorm(DNFNorm norm, Constructor<DNFNorm> cons, String normID, ArrayList<Trace> TP, ArrayList<Trace> FP, ArrayList<Trace> TN, ArrayList<Trace> FN, ArrayList<Trace> P, ArrayList<Trace> N) {
-//        /** Function for altering a norm **/
-//        try {
-//            Set<DNFNorm> possibleAlterations = new HashSet<DNFNorm>();
-//            Set<Disjunct> new_possible_cond = norm.getMoreSpecificConditions(N);
-//            new_possible_cond.addAll(norm.getLessSpecificConditions(FP));
-//            Set<Disjunct> new_possible_proh = norm.getMoreSpecificProhibitions(N);
-//            new_possible_proh.addAll(norm.getLessSpecificProhibitions(FP));
-//            Set<Disjunct> new_possible_dead = norm.getLessSpecificDeadlines(N);
-//            new_possible_dead.addAll(norm.getMoreSpecificDeadlines(TP));
-//            for(Disjunct phi_c_1 : new_possible_cond) {
-//                for(Disjunct phi_p_1 : new_possible_proh) {
-//                    for(Disjunct phi_d_1 : new_possible_dead) {
-//                        DNFNorm n1 = cons.newInstance(normID, phi_c_1, phi_p_1, phi_d_1, r);
-//                        if(!n1.isEmpty()) {
-//                            possibleAlterations.add(n1);
-//                        }
-//                    }
-//                }
-//            }
-//            return possibleAlterations;
-//        } catch(Exception e) {
-//            System.out.println("ERROR IN CREATING A NEW INSTANCE OF NORM DYNAMICALLY during alteration");
-//            e.printStackTrace();
-//        }
-//        return null;
-//    }
 
     Set<DNFNorm> strengthenNorm(DNFNorm norm, Constructor<DNFNorm> cons, String normID, LinkedHashMap<String, Set<State>> states) {
         /**
@@ -317,13 +258,13 @@ public class DNR {
          */
         try {
             Set<DNFNorm> possibleStrengthening = new HashSet<>();
-            Set<List<Disjunct>> less_spec_cond = norm.getLessSpecificFormulas(norm.getCondition(), states.get("OPS"), "cond");
-            Set<List<Disjunct>> less_spec_proh = norm.getLessSpecificFormulas(norm.getProhibition(), states.get("IPS"), "proh");
-            Set<List<Disjunct>> more_spec_dead = norm.getMoreSpecificFormulas(norm.getDeadline(), states.get("DS"), "dead");
+            Set<List<Conjunction>> less_spec_cond = norm.getLessSpecificFormulas(norm.getCondition(), states.get("OPS"), "cond");
+            Set<List<Conjunction>> less_spec_proh = norm.getLessSpecificFormulas(norm.getProhibition(), states.get("IPS"), "proh");
+            Set<List<Conjunction>> more_spec_dead = norm.getMoreSpecificFormulas(norm.getDeadline(), states.get("DS"), "dead");
 
-            for(List<Disjunct> phi_c_1 : less_spec_cond) {
-                for(List<Disjunct> phi_p_1 : less_spec_proh) {
-                    for(List<Disjunct> phi_d_1 : more_spec_dead) {
+            for(List<Conjunction> phi_c_1 : less_spec_cond) {
+                for(List<Conjunction> phi_p_1 : less_spec_proh) {
+                    for(List<Conjunction> phi_d_1 : more_spec_dead) {
                         DNFNorm n1 = cons.newInstance(normID, phi_c_1, phi_p_1, phi_d_1, r);
                         if(!n1.isEmpty()) {
                             possibleStrengthening.add(n1);
@@ -338,36 +279,6 @@ public class DNR {
         }
         return null;
     }
-//
-//    Set<DNFNorm> strengthenNorm(DNFNorm norm, Constructor<DNFNorm> cons, String normID, ArrayList<Trace> TP, ArrayList<Trace> FP, ArrayList<Trace> TN, ArrayList<Trace> FN, ArrayList<Trace> P, ArrayList<Trace> N) {
-//    /** Function for strengthening a norm
-//     Strengthening works only on obeying traces:
-//     Since we want to strengthen it means that, among the traces that obey the current norm,
-//     there are some that are actually bad.
-//     We want to strengthen the norm so that those traces are included in violations.
-//     **/
-//        try {
-//            Set<DNFNorm> possibleStrengthening = new HashSet<DNFNorm>();
-//            Set<Disjunct> less_spec_cond = norm.getLessSpecificConditions(FP);
-//            Set<Disjunct> less_spec_proh = norm.getLessSpecificProhibitions(FP);
-//            Set<Disjunct> more_spec_dead = norm.getMoreSpecificDeadlines(TP);
-//            for(Disjunct phi_c_1 : less_spec_cond) {
-//                for(Disjunct phi_p_1 : less_spec_proh) {
-//                    for(Disjunct phi_d_1 : more_spec_dead) {
-//                        DNFNorm n1 = cons.newInstance(normID, phi_c_1, phi_p_1, phi_d_1, r);
-//                        if(!n1.isEmpty()) {
-//                            possibleStrengthening.add(n1);
-//                        }
-//                    }
-//                }
-//            }
-//            return possibleStrengthening;
-//        } catch(Exception e) {
-//            System.out.println("ERROR IN CREATING A NEW INSTANCE OF NORM DYNAMICALLY during strengthening");
-//            e.printStackTrace();
-//        }
-//        return null;
-//    }
 
     Set<DNFNorm> weakenNorm(DNFNorm norm, Constructor<DNFNorm> cons, String normID, LinkedHashMap<String, Set<State>> states) {
         /**
@@ -375,12 +286,12 @@ public class DNR {
          */
         try {
             Set<DNFNorm> possibleWeakening = new HashSet<>();
-            Set<List<Disjunct>> more_spec_cond = norm.getMoreSpecificFormulas(norm.getCondition(), states.get("CS"), "cond");
-            Set<List<Disjunct>> more_spec_proh = norm.getMoreSpecificFormulas(norm.getProhibition(), states.get("PS"), "proh");
-            Set<List<Disjunct>> less_spec_dead = norm.getLessSpecificFormulas(norm.getDeadline(), states.get("CPS"), "dead");
-            for(List<Disjunct> phi_c_1 : more_spec_cond) {
-                for(List<Disjunct> phi_p_1 : more_spec_proh) {
-                    for(List<Disjunct> phi_d_1 : less_spec_dead) {
+            Set<List<Conjunction>> more_spec_cond = norm.getMoreSpecificFormulas(norm.getCondition(), states.get("CS"), "cond");
+            Set<List<Conjunction>> more_spec_proh = norm.getMoreSpecificFormulas(norm.getProhibition(), states.get("PS"), "proh");
+            Set<List<Conjunction>> less_spec_dead = norm.getLessSpecificFormulas(norm.getDeadline(), states.get("CPS"), "dead");
+            for(List<Conjunction> phi_c_1 : more_spec_cond) {
+                for(List<Conjunction> phi_p_1 : more_spec_proh) {
+                    for(List<Conjunction> phi_d_1 : less_spec_dead) {
                         //create the new norm
                         DNFNorm n1 = cons.newInstance(normID, phi_c_1, phi_p_1, phi_d_1, r);
                         if(!n1.isEmpty()) {
@@ -396,76 +307,70 @@ public class DNR {
         }
         return null;
     }
-//
-//    Set<DNFNorm> weakenNorm(DNFNorm norm, Constructor<DNFNorm> cons, String normID, ArrayList<Trace> TP, ArrayList<Trace> FP, ArrayList<Trace> TN, ArrayList<Trace> FN, ArrayList<Trace> P, ArrayList<Trace> N) {
-//        /** Function for weakening a norm
-//         Weakening works only on violating traces:
-//         Since we want to weaken it means that, among the traces that violate the current norm,
-//         there are  some that are actually good.
-//         We want to weaken the norm so that those traces are excluded from violations.
-//         **/
-//        try {
-//            Set<DNFNorm> possibleWeakening = new HashSet<DNFNorm>();
-//            Set<Disjunct> more_spec_cond = norm.getMoreSpecificConditions(N);
-//            Set<Disjunct> more_spec_proh = norm.getMoreSpecificProhibitions(N);
-//            Set<Disjunct> less_spec_dead = norm.getLessSpecificDeadlines(N);
-//            System.out.println(more_spec_cond);
-//            System.out.println(more_spec_proh);
-//            System.out.println(less_spec_dead);
-//            for(Disjunct phi_c_1 : more_spec_cond) {
-//                for(Disjunct phi_p_1 : more_spec_proh) {
-//                    for(Disjunct phi_d_1 : less_spec_dead) {
-//                        //create the new norm
-//                        DNFNorm n1 = cons.newInstance(normID, phi_c_1, phi_p_1, phi_d_1, r);
-//                        if(!n1.isEmpty()) {
-//                            possibleWeakening.add(n1);
-//                        }
-//                    }
-//                }
-//            }
-//            return possibleWeakening;
-//        } catch(Exception e) {
-//            System.out.println("ERROR IN CREATING A NEW INSTANCE OF NORM DYNAMICALLY during weakening");
-//            e.printStackTrace();
-//        }
-//        return null;
-//    }
-    
+
     ArrayList<Integer> getConfusionMatrix(DNFNorm n, List<Trace> traces ) {
         /**
          * Returns a list composed of the 4 elements (TP, FP, TN, FN) composing a confusion matrix which describes
          * how well norm n characterizes the traces w.r.t. their labeling
          */
         ArrayList<Integer> conf_matrix = new ArrayList<>();
-        int tp = (int)traces.stream().filter(t -> (t.getObjEval() && n.isViol(t)==-1)).count();
-        int fp = (int)traces.stream().filter(t -> (!t.getObjEval() && n.isViol(t)==-1)).count();
-        int tn = (int)traces.stream().filter(t -> (!t.getObjEval() && n.isViol(t)>-1)).count();
-        int fn = (int)traces.stream().filter(t -> (t.getObjEval() && n.isViol(t)>-1)).count();
-        conf_matrix.add(tp);
-        conf_matrix.add(fp);
-        conf_matrix.add(tn);
-        conf_matrix.add(fn);
+        if(n==null) {
+            conf_matrix.add(-1);
+            conf_matrix.add(-1);
+            conf_matrix.add(-1);
+            conf_matrix.add(-1);
+        }
+        else {
+            int tp = (int) traces.stream().filter(t -> (t.getObjEval() && n.isViol(t) == -1)).count();
+            int fp = (int) traces.stream().filter(t -> (!t.getObjEval() && n.isViol(t) == -1)).count();
+            int tn = (int) traces.stream().filter(t -> (!t.getObjEval() && n.isViol(t) > -1)).count();
+            int fn = (int) traces.stream().filter(t -> (t.getObjEval() && n.isViol(t) > -1)).count();
+            conf_matrix.add(tp);
+            conf_matrix.add(fp);
+            conf_matrix.add(tn);
+            conf_matrix.add(fn);
+        }
         return conf_matrix;
     }
     
-    ArrayList<Integer> getConfusionMatrices(Configuration c, List<Trace> traces ) {
+    ArrayList<Integer> getConfusionMatrices(Configuration c, int nr_norms, List<Trace> traces ) {
         /**
          * Returns a confusion matrix for every norm in the configuration c
          */
         ArrayList<Integer> conf_matrices = new ArrayList<>();
-        Iterator<Map.Entry<String, DNFNorm>> iter = c.getMap().entrySet().iterator();
-        while (iter.hasNext()) { //this loops for all simulation.norms
-            Map.Entry<String, DNFNorm> n_conf = iter.next();
-            conf_matrices.addAll(getConfusionMatrix(n_conf.getValue(), traces));
+
+        if(c==null) {
+            for(int i=0;i<nr_norms;i++)
+                conf_matrices.addAll(getConfusionMatrix(null, traces));
+        }
+        else {
+            Iterator<Map.Entry<String, DNFNorm>> iter = c.getMap().entrySet().iterator();
+            while (iter.hasNext()) { //this loops for all simulation.norms
+                Map.Entry<String, DNFNorm> n_conf = iter.next();
+                conf_matrices.addAll(getConfusionMatrix(n_conf.getValue(), traces));
+            }
         }
         return conf_matrices;
     }
 
     ArrayList<Integer> getTwoLabelConfusionMatrix(Configuration c, List<Trace> traces ) {
         /**
-         * Returns a two-labels confusion matrix which considers both norms at the same time
+         * Returns a two-labels confusion matrix which considers both norms (assumes 2 norms) at the same time
          */
         ArrayList<Integer> conf_matrix = new ArrayList<>();
+
+        if(c==null) {
+            conf_matrix.add(-1);
+            conf_matrix.add(-1);
+            conf_matrix.add(-1);
+            conf_matrix.add(-1);
+            conf_matrix.add(-1);
+            conf_matrix.add(-1);
+            conf_matrix.add(-1);
+            conf_matrix.add(-1);
+            return conf_matrix;
+        }
+
         DNFNorm n1 = c.get(idMaxSpeedNorm);
         DNFNorm n2 = c.get(idMinDistNorm);
         //positive
@@ -532,22 +437,6 @@ public class DNR {
     }
 
 
-//
-//    public LinkedHashMap<String, String> getSuggestionTypes( Configuration c , String type) {
-//        /**
-//         * Returns, for each norm in the configuration, a suggestion @type
-//         *
-//         */
-//        LinkedHashMap<String, String> sugg = new LinkedHashMap<>();
-//        Iterator<Map.Entry<String, DNFNorm>> iter = c.getMap().entrySet().iterator();
-//        while (iter.hasNext()) { //this loops for all simulation.norms just to put empty suggestion since we are exiting the loop
-//            Map.Entry<String, DNFNorm> n_conf = iter.next();
-//            sugg.put(n_conf.getKey(), type);
-//        }
-//        return sugg;
-//    }
-
-
     double getNormQuality(String metric, DNFNorm n, List<Trace> traces) {
         /**
          * Returns the quality of norm n w.r.t. the metric metric
@@ -576,6 +465,8 @@ public class DNR {
         /**
          * Returns the quality of a configuration w.r.t. a  given metric
          */
+        if(c==null)
+            return -1.0;
         double quality = 0.0;
         /* Case when I'm not interested in the selection step but only in the synthesis step*/
         if(metric.equals("random"))
@@ -598,7 +489,7 @@ public class DNR {
         return quality;
     }
 
-    public LinkedHashMap <String, ArrayList<String>> evalConfiguration(Configuration config, ArrayList<Trace> labeledTraces, boolean traintestsplit, boolean independent_set_test, ArrayList<Trace> independent_labeledTraces, boolean twoLabelConfMatr) {
+    public LinkedHashMap <String, ArrayList<String>> evalConfiguration(int nr_norms, Configuration config, ArrayList<Trace> labeledTraces, boolean traintestsplit, boolean independent_set_test, ArrayList<Trace> independent_labeledTraces, boolean twoLabelConfMatr) {
         /**
          * Function that evaluates a configuration of norms w.r.t. a labeled dataset of traces.
          * It returns an arraylist of strings, where each string contains a representation of the confusion matrices for the norms
@@ -621,12 +512,12 @@ public class DNR {
         /** CONFIG **/
         /** (1) the quality of the config on the train traces **/
         l.add(getConfigQuality(config, train_traces)+""); //1element
-        if(config.getNormsTypes().size()>1) {
+        if (nr_norms == 2) {
             if (twoLabelConfMatr) {
                 for (int v : getTwoLabelConfusionMatrix(config, train_traces)) //8elements in total
                     l.add(v + "");
             } else {
-                for (int v : getConfusionMatrices(config, train_traces)) //4elements for each norm
+                for (int v : getConfusionMatrices(config, nr_norms, train_traces)) //4elements for each norm
                     l.add(v + "");
             }
         }
@@ -636,12 +527,12 @@ public class DNR {
         }
         /** (2) the quality of the config on the test traces **/
         l.add(getConfigQuality(config, test_traces)+"");
-        if(config.getNormsTypes().size()>1) {
+        if (nr_norms == 2) {
             if (twoLabelConfMatr) {
                 for (int v : getTwoLabelConfusionMatrix(config, test_traces)) //8elements in total
                     l.add(v + "");
             } else {
-                for (int v : getConfusionMatrices(config, test_traces)) //4elements for each norm
+                for (int v : getConfusionMatrices(config,nr_norms, test_traces)) //4elements for each norm
                     l.add(v + "");
             }
         } else {
@@ -654,7 +545,7 @@ public class DNR {
     }
 
 
-    public LinkedHashMap <String, ArrayList<String>> evalConfigurations(Configuration initConfig, Configuration revConfig, ArrayList<Trace> labeledTraces, boolean traintestsplit, boolean independent_set_test, ArrayList<Trace> independent_labeledTraces, boolean twoLabelConfMatr) {
+    public LinkedHashMap <String, ArrayList<String>> evalConfigurations(int nr_norms, Configuration initConfig, Configuration revConfig, ArrayList<Trace> labeledTraces, boolean traintestsplit, boolean independent_set_test, ArrayList<Trace> independent_labeledTraces, boolean twoLabelConfMatr) {
         /**
          * Function that compares two different configurations
          */
@@ -675,45 +566,50 @@ public class DNR {
         LinkedHashMap <String, ArrayList<String>> eval = new LinkedHashMap<>();
         ArrayList<String> l = new ArrayList<>();
         /**INITIAL CONFIG **/
+        DNFNorm msnnorm = null;
+        if(initConfig!=null) {
+            msnnorm = initConfig.get("MSN");
+        }
         /** (1) the quality of the initial config on the train traces **/
-        l.add(getConfigQuality(initConfig, train_traces)+""); //1element
-        if(initConfig.getNormsTypes().size()>1) {
+        l.add(getConfigQuality(initConfig, train_traces) + ""); //1element
+        if (nr_norms == 2) {
             if (twoLabelConfMatr) {
                 for (int v : getTwoLabelConfusionMatrix(initConfig, train_traces)) //8elements in total
                     l.add(v + "");
             } else {
-                for (int v : getConfusionMatrices(initConfig, train_traces)) //4elements for each norm
+                for (int v : getConfusionMatrices(initConfig, nr_norms, train_traces)) //4elements for each norm
                     l.add(v + "");
             }
-        }
-        else {
-            for(int v : getConfusionMatrix(initConfig.get("MSN"), train_traces))
-                l.add(v+"");
+        } else {
+            for (int v : getConfusionMatrix(msnnorm, train_traces))
+                l.add(v + "");
         }
         /** (2) the quality of the initial config on the test traces **/
-        l.add(getConfigQuality(initConfig, test_traces)+"");
-        if(initConfig.getNormsTypes().size()>1) {
+        l.add(getConfigQuality(initConfig, test_traces) + "");
+        if (nr_norms == 2) {
             if (twoLabelConfMatr) {
                 for (int v : getTwoLabelConfusionMatrix(initConfig, test_traces)) //8elements in total
                     l.add(v + "");
             } else {
-                for (int v : getConfusionMatrices(initConfig, test_traces)) //4elements for each norm
+                for (int v : getConfusionMatrices(initConfig,nr_norms, test_traces)) //4elements for each norm
                     l.add(v + "");
             }
         } else {
-            for(int v : getConfusionMatrix(initConfig.get("MSN"), test_traces))
-                l.add(v+"");
+            for (int v : getConfusionMatrix(msnnorm, test_traces))
+                l.add(v + "");
         }
+
+
         /**REVISED CONFIG **/
         /** (3) the quality of the new config on the train traces **/
         if(revConfig != null) {
             l.add(getConfigQuality(revConfig, train_traces) + ""); //here I use the test_traces
-            if (revConfig.getNormsTypes().size() > 1) {
+            if (nr_norms == 2) {
                 if (twoLabelConfMatr) {
                     for (int v : getTwoLabelConfusionMatrix(revConfig, train_traces)) //8elements in total
                         l.add(v + "");
                 } else {
-                    for (int v : getConfusionMatrices(revConfig, train_traces)) //4elements for each norm
+                    for (int v : getConfusionMatrices(revConfig, nr_norms,train_traces)) //4elements for each norm
                         l.add(v + "");
                 }
             } else {
@@ -723,23 +619,23 @@ public class DNR {
         }
         else { /** (or the same quality of the initial config if no new config is found) **/
             l.add(getConfigQuality(initConfig, test_traces)+"");
-            if(initConfig.getNormsTypes().size()>1) {
-                for (int v : getConfusionMatrices(initConfig, train_traces))
+            if (nr_norms == 2) {
+                for (int v : getConfusionMatrices(initConfig, nr_norms,train_traces))
                     l.add(v + "");
             }
             else
-                for(int v : getConfusionMatrix(initConfig.get("MSN"), train_traces))
+                for(int v : getConfusionMatrix(msnnorm, train_traces))
                     l.add(v+"");
         }
         /** (4) the quality of the new config on the test traces (or the same quality of the initial config if no new config is found) **/
         if(revConfig != null) {
             l.add(getConfigQuality(revConfig, test_traces)+""); //here I use the test_traces
-            if (revConfig.getNormsTypes().size() > 1) {
+            if (nr_norms == 2) {
                 if (twoLabelConfMatr) {
                     for (int v : getTwoLabelConfusionMatrix(revConfig, test_traces)) //8elements in total
                         l.add(v + "");
                 } else {
-                    for (int v : getConfusionMatrices(revConfig, test_traces)) //4elements for each norm
+                    for (int v : getConfusionMatrices(revConfig, nr_norms,test_traces)) //4elements for each norm
                         l.add(v + "");
                 }
             } else {
@@ -749,12 +645,12 @@ public class DNR {
         }
         else {
             l.add(getConfigQuality(initConfig, test_traces)+"");
-            if(initConfig.getNormsTypes().size()>1) {
-                for (int v : getConfusionMatrices(initConfig, test_traces))
+            if (nr_norms == 2) {
+                for (int v : getConfusionMatrices(initConfig, nr_norms,test_traces))
                     l.add(v + "");
             }
             else
-                for(int v : getConfusionMatrix(initConfig.get("MSN"), test_traces))
+                for(int v : getConfusionMatrix(msnnorm, test_traces))
                     l.add(v+"");
         }
          //putting everything in the eval map that associates it with the metric

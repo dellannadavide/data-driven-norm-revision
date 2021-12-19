@@ -40,7 +40,10 @@ public class Configuration {
     }
     
     public DNFNorm get(String id) {
-    	return map.get(id);
+    	if(map.containsKey(id))
+			return map.get(id);
+		else
+			return null;
     }
     
     public LinkedHashMap<String, DNFNorm> getMap() {
