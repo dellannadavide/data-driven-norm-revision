@@ -20,7 +20,7 @@ to run experiments it is sufficient to set the parameters in the ```src/Experime
 
 #### Repository structure ####
 ```
-Creative Social Robots
+Data-Driven Norm Revision
 │   README.md                               
 │
 └───lib                 # Required libraries
