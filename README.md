@@ -39,4 +39,4 @@ Data-Driven Norm Revision
 
 ### Who do I talk to? ###
 
-* Dr. D. Dell'Anna [d.dellanna@tudelft.nl](mailto:d.dellanna@tudelft.nl)
+* Dr. D. Dell'Anna [d.dellanna@uu.nl](mailto:d.dellanna@uu.nl)
