@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5907522.svg)](https://doi.org/10.5281/zenodo.5907522)
+
 # DDNR: Data-Driven Norm Revision #
 ### A data-driven approach to norm revision that synthesises revised norms with respect to a dataset of traces describing the behavior of the autonomous agents in a Multi-Agent System ###
 
